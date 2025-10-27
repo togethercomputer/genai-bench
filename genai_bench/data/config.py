@@ -25,7 +25,7 @@ class DatasetSourceConfig(BaseModel):
 
     # For file sources
     file_format: Optional[str] = Field(
-        None, description="File format: 'csv', 'txt', 'json'"
+        None, description="File format: 'csv', 'txt', 'json', 'jsonl'"
     )
 
     # For HuggingFace sources - accepts ANY parameter that load_dataset supports
@@ -123,6 +123,8 @@ class DatasetConfig(BaseModel):
                     file_format = "txt"
                 elif path.suffix == ".json":
                     file_format = "json"
+                elif path.suffix == ".jsonl":
+                    file_format = "jsonl"
                 else:
                     raise ValueError(f"Unsupported file format: {path.suffix}")
             else:

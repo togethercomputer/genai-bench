@@ -1,0 +1,9 @@
+{
+  "source": {
+    "type": "file",
+    "path": "/data/long_conversations.jsonl",
+    "file_format": "jsonl"
+  },
+  "prompt_column": "messages",
+  "conversation_mode": true
+}
