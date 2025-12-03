@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple, Union
 
 from genai_bench.data.loaders.base import DatasetFormat, DatasetLoader
 from genai_bench.logging import init_logger
@@ -22,7 +22,9 @@ class TextDatasetLoader(DatasetLoader):
     }
     media_type = "Text"
 
-    def _process_loaded_data(self, data: Any) -> List[str]:
+    def _process_loaded_data(
+        self, data: Any
+    ) -> Union[List[str], List[Tuple[str, Dict[str, Any]]]]:
         """Process data loaded from dataset source."""
         # Handle data from dataset sources
         if isinstance(data, list):
@@ -54,22 +56,53 @@ class TextDatasetLoader(DatasetLoader):
                     f"Cannot extract prompts from data: {type(data)}, error: {str(e)}"
                 ) from e
 
-    def _process_messages_data(self, data: List[Dict[str, Any]]) -> List[str]:
-        """Process messages format data for benchmarking."""
-        prompts = []
+    def _process_messages_data(
+        self, data: List[Dict[str, Any]]
+    ) -> List[Tuple[str, Dict[str, Any]]]:
+        """Process messages format data for benchmarking.
+        
+        Returns a list of tuples where each tuple contains:
+        - prompt: The last user message (str)
+        - additional_params: Dict with 'system_message' and 'chat_history' keys
+        """
+        results = []
         for item in data:
             messages = item.get("messages", [])
             if not messages:
                 continue
-                
-            # Extract the last user message as the primary prompt
+
+            # Extract system message (if present)
+            system_message = None
+            chat_history = []
             last_user_message = None
-            for msg in reversed(messages):
-                if msg.get("role") == "user":
-                    last_user_message = msg.get("content", "")
-                    break
-            
+
+            # Process messages in order
+            for msg in messages:
+                role = msg.get("role", "").lower()
+                content = msg.get("content", "")
+
+                if role == "system":
+                    system_message = content
+                elif role == "user":
+                    # If we already found a user message, add previous messages to history
+                    if last_user_message is not None:
+                        chat_history.append({"role": "user", "content": last_user_message})
+                    last_user_message = content
+                elif role == "assistant":
+                    # Add assistant response to history
+                    if last_user_message is not None:
+                        chat_history.append({"role": "user", "content": last_user_message})
+                        chat_history.append({"role": "assistant", "content": content})
+                        last_user_message = None
+
+            # If we have a last user message, use it as the prompt
             if last_user_message:
-                prompts.append(last_user_message)
-        
-        return prompts
+                additional_params = {}
+                if system_message:
+                    additional_params["system_message"] = system_message
+                if chat_history:
+                    additional_params["chat_history"] = chat_history
+
+                results.append((last_user_message, additional_params))
+
+        return results

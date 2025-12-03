@@ -1,6 +1,6 @@
 import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from genai_bench.data.config import DatasetConfig
 from genai_bench.logging import init_logger
@@ -31,7 +31,7 @@ class TextSampler(Sampler):
         tokenizer,
         model: str,
         output_modality: str,
-        data: List[str],
+        data: Union[List[str], List[Tuple[str, Dict[str, Any]]]],
         additional_request_params: Optional[Dict[str, Any]] = None,
         dataset_config: Optional[DatasetConfig] = None,
         **kwargs,
@@ -48,6 +48,12 @@ class TextSampler(Sampler):
             getattr(self.dataset_config, "synthetic_cached_input_length", 0) or 0
         )
         self._synthetic_request_counter = 0
+        # Track if data contains tuples (messages format with system/chat history)
+        self._is_messages_format = (
+            isinstance(data, list)
+            and len(data) > 0
+            and isinstance(data[0], tuple)
+        )
 
     def sample(self, scenario: Optional[Scenario]) -> UserRequest:
         """
@@ -81,7 +87,17 @@ class TextSampler(Sampler):
             num_input_tokens, num_output_tokens = scenario.sample()
             self.additional_request_params["ignore_eos"] = True
 
-        prompt = self._sample_text(num_input_tokens)
+        # Sample text and get any per-item additional params (for messages format)
+        result = self._sample_text(num_input_tokens)
+        if isinstance(result, tuple):
+            prompt, item_additional_params = result
+            # Merge per-item params into additional_request_params
+            # Per-item params take precedence over default params
+            merged_params = {**self.additional_request_params, **item_additional_params}
+        else:
+            prompt = result
+            merged_params = self.additional_request_params
+
         num_prefill_tokens = self.get_token_length(prompt)
         if num_input_tokens is not None:
             self._check_discrepancy(num_input_tokens, num_prefill_tokens, threshold=0.1)
@@ -91,7 +107,7 @@ class TextSampler(Sampler):
             prompt=prompt,
             num_prefill_tokens=num_prefill_tokens,
             max_tokens=num_output_tokens,
-            additional_request_params=self.additional_request_params,
+            additional_request_params=merged_params,
         )
 
     def _sample_embedding_request(
@@ -172,7 +188,9 @@ class TextSampler(Sampler):
                 f"{type(scenario.scenario_type)}"
             )
 
-    def _sample_text(self, num_input_tokens: Optional[int]) -> str:
+    def _sample_text(
+        self, num_input_tokens: Optional[int]
+    ) -> Union[str, Tuple[str, Dict[str, Any]]]:
         """
         Samples text from a list of lines based on the specified number of
         input tokens. If num_input_tokens is None, samples a random line
@@ -182,10 +200,15 @@ class TextSampler(Sampler):
             num_input_tokens (int): The target number of input tokens.
 
         Returns:
-            str: A text prompt containing the desired number of tokens.
+            str or Tuple[str, Dict]: A text prompt, or tuple of (prompt, additional_params)
+                if data is in messages format.
         """
         if not num_input_tokens:
-            return random.choice(self.data)
+            item = random.choice(self.data)
+            # If data is in messages format (tuples), return the tuple
+            if isinstance(item, tuple):
+                return item
+            return item
 
         # Synthetic Tore-style generation path: build exact-length prompt with cached prefix
         if self.synthetic_enabled:
