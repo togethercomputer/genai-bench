@@ -389,9 +389,22 @@ class AzureOpenAIUser(BaseUser):
         Returns:
             Request body dict
         """
-        # Build messages
+        # Build messages array
         messages = []
+        
+        # Add system message if provided
+        system_message = request.additional_request_params.get("system_message")
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        
+        # Add conversation history if provided
+        chat_history = request.additional_request_params.get("chat_history", [])
+        for msg in chat_history:
+            # Ensure message has required fields
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                messages.append(msg)
 
+        # Add current user message
         if isinstance(request, UserImageChatRequest) and request.image_content:
             # Multimodal request
             content: List[Dict[str, Any]] = [{"type": "text", "text": request.prompt}]
@@ -402,16 +415,22 @@ class AzureOpenAIUser(BaseUser):
             # Text-only request
             messages.append({"role": "user", "content": request.prompt})
 
-        # Build request body
+        # Build request body, but exclude system_message and chat_history from additional_params
+        # since we've already processed them into messages
+        additional_params = {
+            k: v for k, v in request.additional_request_params.items()
+            if k not in ("system_message", "chat_history")
+        }
+        
         body = {
             "messages": messages,
             "max_tokens": request.max_tokens,
-            "temperature": request.additional_request_params.get("temperature", 0.0),
-            "stream": request.additional_request_params.get("stream", True),
+            "temperature": additional_params.get("temperature", 0.0),
+            "stream": additional_params.get("stream", True),
             "stream_options": {
                 "include_usage": True,
             },
-            **request.additional_request_params,
+            **additional_params,
         }
 
         return body

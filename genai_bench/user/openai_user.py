@@ -58,6 +58,22 @@ class OpenAIUser(BaseUser):
                 f"{type(user_request)}"
             )
 
+        # Build messages array
+        messages = []
+        
+        # Add system message if provided
+        system_message = user_request.additional_request_params.get("system_message")
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        
+        # Add conversation history if provided
+        chat_history = user_request.additional_request_params.get("chat_history", [])
+        for msg in chat_history:
+            # Ensure message has required fields
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                messages.append(msg)
+        
+        # Add current user message
         if isinstance(user_request, UserImageChatRequest):
             text_content = [{"type": "text", "text": user_request.prompt}]
             image_content = [
@@ -73,20 +89,22 @@ class OpenAIUser(BaseUser):
             # OpenAI API used a different text prompt format before
             # multi-modality model support.
             content = user_request.prompt
+        
+        messages.append({"role": "user", "content": content})
 
+        # Build payload, but exclude system_message and chat_history from additional_params
+        # since we've already processed them into messages
+        additional_params = {
+            k: v for k, v in user_request.additional_request_params.items()
+            if k not in ("system_message", "chat_history")
+        }
+        
         payload = {
             "model": user_request.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": content,
-                }
-            ],
+            "messages": messages,
             "max_tokens": user_request.max_tokens,
-            "temperature": user_request.additional_request_params.get(
-                "temperature", 0.0
-            ),
-            "ignore_eos": user_request.additional_request_params.get(
+            "temperature": additional_params.get("temperature", 0.0),
+            "ignore_eos": additional_params.get(
                 "ignore_eos",
                 bool(user_request.max_tokens),
             ),
@@ -94,7 +112,7 @@ class OpenAIUser(BaseUser):
             "stream_options": {
                 "include_usage": True,
             },
-            **user_request.additional_request_params,
+            **additional_params,
         }
         self.send_request(
             True,

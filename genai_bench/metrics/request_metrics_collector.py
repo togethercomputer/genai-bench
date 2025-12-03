@@ -31,16 +31,24 @@ class RequestMetricsCollector:
         assert response.num_prefill_tokens is not None, (
             "response.num_prefill_tokens is None"
         )
-        assert response.time_at_first_token is not None, (
-            "response.time_at_first_token is None"
-        )
         assert response.start_time is not None, "response.start_time is None"
         assert response.end_time is not None, "response.end_time is None"
 
         # Safely calculate common metrics
         self.metrics.num_input_tokens = response.num_prefill_tokens
-        self.metrics.ttft = response.time_at_first_token - response.start_time
         self.metrics.e2e_latency = response.end_time - response.start_time
+        
+        # Handle time_at_first_token - use end_time as fallback if None
+        if response.time_at_first_token is not None:
+            self.metrics.ttft = response.time_at_first_token - response.start_time
+        else:
+            # Fallback: if time_at_first_token is None, use e2e_latency as ttft
+            # This can happen if streaming didn't work properly or response was too fast
+            logger.warning(
+                f"time_at_first_token is None, using end_time as fallback. "
+                f"This may affect TTFT accuracy."
+            )
+            self.metrics.ttft = self.metrics.e2e_latency
         self.metrics.total_tokens = self.metrics.num_input_tokens
 
         # Calculate prefill throughput
