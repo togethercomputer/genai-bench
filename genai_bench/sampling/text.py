@@ -98,7 +98,22 @@ class TextSampler(Sampler):
             prompt = result
             merged_params = self.additional_request_params
 
+        # Calculate num_prefill_tokens - include system message and chat history if present
         num_prefill_tokens = self.get_token_length(prompt)
+        
+        # Add system message tokens if present
+        system_message = merged_params.get("system_message")
+        if system_message:
+            num_prefill_tokens += self.get_token_length(system_message)
+        
+        # Add chat history tokens if present
+        chat_history = merged_params.get("chat_history", [])
+        for msg in chat_history:
+            if isinstance(msg, dict) and "content" in msg:
+                content = msg["content"]
+                if isinstance(content, str):
+                    num_prefill_tokens += self.get_token_length(content)
+        
         if num_input_tokens is not None:
             self._check_discrepancy(num_input_tokens, num_prefill_tokens, threshold=0.1)
 

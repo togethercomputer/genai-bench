@@ -92,6 +92,23 @@ class OpenLoopRunner:
         try:
             if isinstance(req, (UserChatRequest, UserImageChatRequest)):
                 endpoint = "/v1/chat/completions"
+                
+                # Build messages array
+                messages = []
+                
+                # Add system message if provided
+                system_message = req.additional_request_params.get("system_message")
+                if system_message:
+                    messages.append({"role": "system", "content": system_message})
+                
+                # Add conversation history if provided
+                chat_history = req.additional_request_params.get("chat_history", [])
+                for msg in chat_history:
+                    # Ensure message has required fields
+                    if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                        messages.append(msg)
+                
+                # Add current user message
                 if isinstance(req, UserImageChatRequest):
                     text_content = [{"type": "text", "text": req.prompt}]  # type: ignore[attr-defined]
                     image_content = [
@@ -101,25 +118,29 @@ class OpenLoopRunner:
                     content = text_content + image_content
                 else:
                     content = req.prompt
+                
+                messages.append({"role": "user", "content": content})
+
+                # Build payload, but exclude system_message and chat_history from additional_params
+                # since we've already processed them into messages
+                additional_params = {
+                    k: v for k, v in req.additional_request_params.items()
+                    if k not in ("system_message", "chat_history", "stream")
+                }
 
                 payload = {
                     "model": req.model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": content,
-                        }
-                    ],
+                    "messages": messages,
                     "max_tokens": req.additional_request_params.get("max_tokens", None)
                     or req.__dict__.get("max_tokens"),
-                    "temperature": req.additional_request_params.get("temperature", 0.0),
-                    "ignore_eos": req.additional_request_params.get(
+                    "temperature": additional_params.get("temperature", 0.0),
+                    "ignore_eos": additional_params.get(
                         "ignore_eos", bool(req.__dict__.get("max_tokens"))
                     ),
                     # Force streaming to compute TTFT/TPOT properly
                     "stream": True,
                     "stream_options": {"include_usage": True},
-                    **{k: v for k, v in req.additional_request_params.items() if k not in {"stream"}},
+                    **additional_params,
                 }
 
                 start_time = time.monotonic()
