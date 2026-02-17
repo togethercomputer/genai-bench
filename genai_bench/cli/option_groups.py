@@ -85,6 +85,7 @@ def api_options(func):
                 "gcp-vertex",
                 "vllm",
                 "sglang",
+                "ssl-bypass-vllm",
             ],
             case_sensitive=False,
         ),
@@ -92,7 +93,8 @@ def api_options(func):
         prompt=True,
         callback=validate_api_backend,
         help="The API backend to use. Supports major cloud providers and "
-        "open-source servers.",
+        "open-source servers. Use 'ssl-bypass-vllm' for OpenAI-compatible "
+        "endpoints with self-signed SSL certificates.",
     )(func)
     return func
 

@@ -16,6 +16,7 @@ from genai_bench.user.gcp_vertex_user import GCPVertexUser
 from genai_bench.user.oci_cohere_user import OCICohereUser
 from genai_bench.user.oci_genai_user import OCIGenAIUser
 from genai_bench.user.openai_user import OpenAIUser
+from genai_bench.user.ssl_bypass_openai_user import SSLBypassVLLMUser
 
 logger = init_logger(__name__)
 
@@ -27,6 +28,7 @@ API_BACKEND_USER_MAP = {
     AWSBedrockUser.BACKEND_NAME: AWSBedrockUser,
     AzureOpenAIUser.BACKEND_NAME: AzureOpenAIUser,
     GCPVertexUser.BACKEND_NAME: GCPVertexUser,
+    SSLBypassVLLMUser.BACKEND_NAME: SSLBypassVLLMUser,
     "vllm": OpenAIUser,  # vLLM uses OpenAI-compatible API
     "sglang": OpenAIUser,  # SGLang uses OpenAI-compatible API
 }
@@ -258,6 +260,9 @@ def validate_api_key(ctx, param, value):
     # Backends that require API key
     api_key_required = [OpenAIUser.BACKEND_NAME, "vllm", "sglang"]
 
+    # Backends where API key is optional (supports unauthenticated endpoints)
+    api_key_optional = [SSLBypassVLLMUser.BACKEND_NAME]
+
     # Backends that don't use traditional API key
     no_api_key = [
         OCICohereUser.BACKEND_NAME,
@@ -271,6 +276,9 @@ def validate_api_key(ctx, param, value):
     if api_backend in api_key_required:
         if not value:
             raise click.BadParameter(f"API key is required for {api_backend} backend")
+    elif api_backend in api_key_optional:
+        # API key is accepted but not required
+        pass
     elif api_backend == AzureOpenAIUser.BACKEND_NAME:
         # Azure can use API key or Azure AD - validated in model auth options
         pass

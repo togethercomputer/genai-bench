@@ -225,6 +225,10 @@ def benchmark(
         # vLLM and SGLang use OpenAI-compatible API
         auth_kwargs["api_key"] = model_api_key or api_key
 
+    elif api_backend == "ssl-bypass-vllm":
+        # SSL bypass backend — API key is optional
+        auth_kwargs["api_key"] = model_api_key or api_key
+
     # Map backend names for auth factory
     auth_backend_map = {
         "oci-cohere": "oci",
@@ -232,6 +236,7 @@ def benchmark(
         "oci-genai": "oci",
         "vllm": "openai",
         "sglang": "openai",
+        "ssl-bypass-vllm": "openai",
     }
     auth_backend = auth_backend_map.get(api_backend, api_backend)
 
