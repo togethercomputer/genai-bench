@@ -41,7 +41,7 @@ class OpenAIUser(BaseUser):
         if not self.host or not self.auth_provider:
             raise ValueError("API key and base must be set for OpenAIUser.")
         self.headers = {
-            "Authorization": f"Bearer {self.auth_provider.get_credentials()}",
+            **self.auth_provider.get_headers(),
             "Content-Type": "application/json",
         }
         super().on_start()

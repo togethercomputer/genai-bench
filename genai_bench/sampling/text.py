@@ -33,6 +33,7 @@ class TextSampler(Sampler):
         data: List[str],
         additional_request_params: Optional[Dict[str, Any]] = None,
         dataset_config: Optional[DatasetConfig] = None,
+        prefix_len: int = 0,
         **kwargs,
     ):
         super().__init__(
@@ -41,6 +42,11 @@ class TextSampler(Sampler):
 
         self.data = data
         self.batch_size = 1  # Default batch size
+        self.prefix_len = prefix_len
+        # Generate once so every request shares the same prefix (simulates KV cache hit)
+        self._shared_prefix: Optional[str] = (
+            self._sample_text(prefix_len) if prefix_len > 0 else None
+        )
 
     def sample(self, scenario: Optional[Scenario]) -> UserRequest:
         """
@@ -74,7 +80,12 @@ class TextSampler(Sampler):
             num_input_tokens, num_output_tokens = scenario.sample()
             self.additional_request_params["ignore_eos"] = True
 
-        prompt = self._sample_text(num_input_tokens)
+        if self._shared_prefix is not None and num_input_tokens is not None:
+            suffix_tokens = max(num_input_tokens - self.prefix_len, 1)
+            suffix = self._sample_text(suffix_tokens)
+            prompt = self._shared_prefix + " " + suffix
+        else:
+            prompt = self._sample_text(num_input_tokens)
         num_prefill_tokens = self.get_token_length(prompt)
         if num_input_tokens is not None:
             self._check_discrepancy(num_input_tokens, num_prefill_tokens, threshold=0.1)

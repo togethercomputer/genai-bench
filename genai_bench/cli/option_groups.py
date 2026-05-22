@@ -517,6 +517,17 @@ def experiment_options(func):
             """,  # noqa: E501
     )(func)
     func = click.option(
+        "--prefix-len",
+        type=click.INT,
+        default=0,
+        help=(
+            "Number of tokens to use as a fixed shared prefix for every request. "
+            "The prefix is generated once and reused across all requests to simulate "
+            "KV cache hit workloads. Must be less than num_input_tokens in the "
+            "traffic scenario. Default: 0 (disabled)."
+        ),
+    )(func)
+    func = click.option(
         "--batch-size",
         type=click.INT,
         multiple=True,

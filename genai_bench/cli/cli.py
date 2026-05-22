@@ -82,6 +82,7 @@ def benchmark(
     cooldown_ratio,
     batch_size,
     traffic_scenario,
+    prefix_len,
     additional_request_params,
     # Model auth options
     model_auth_type,
@@ -287,6 +288,7 @@ def benchmark(
         data=data,
         additional_request_params=additional_request_params,
         dataset_config=dataset_config_obj,
+        prefix_len=prefix_len,
     )
 
     # If user did not provide scenarios but provided a dataset, default to dataset mode
